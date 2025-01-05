@@ -1,0 +1,91 @@
+{
+  "description": "Catch SAML requests - URL and Base64 decode them for easy introspection.",
+  "edition": 2,
+  "graph": {
+    "edges": [
+      {
+        "source": {
+          "exec_alias": "exec",
+          "node_id": 3
+        },
+        "target": {
+          "exec_alias": "exec",
+          "node_id": 1
+        }
+      },
+      {
+        "source": {
+          "exec_alias": "exec",
+          "node_id": 4
+        },
+        "target": {
+          "exec_alias": "exec",
+          "node_id": 3
+        }
+      }
+    ],
+    "nodes": [
+      {
+        "alias": "passive_end",
+        "definition_id": "caido/passive-end",
+        "display": {
+          "x": 0,
+          "y": 330
+        },
+        "id": 1,
+        "inputs": [],
+        "name": "Passive End",
+        "version": "0.1.0"
+      },
+      {
+        "alias": "javascript",
+        "definition_id": "caido/http-code-js",
+        "display": {
+          "x": 0,
+          "y": 220
+        },
+        "id": 3,
+        "inputs": [
+          {
+            "alias": "response",
+            "value": {
+              "data": "$on_intercept_response.response",
+              "kind": "ref"
+            }
+          },
+          {
+            "alias": "request",
+            "value": {
+              "data": "$on_intercept_response.request",
+              "kind": "ref"
+            }
+          },
+          {
+            "alias": "code",
+            "value": {
+              "data": "export async function run({ request, response }, sdk) {\n  // ... existing function signature ...\n  \n  function decodeBase64WithPadding(base64String) {\n    // Add padding if needed\n    while (base64String.length % 4) {\n      base64String += '='\n    }\n    try {\n      return atob(base64String)\n    } catch (e) {\n      return \"Failed to decode base64: \" + e.message\n    }\n  }\n  \n  let requestBody = request.getBody().toText()\n  let responseBody = response.getBody().toText()\n  \n  let requestMatch = requestBody.match(/SAMLRequest=([^&]+)/)\n  let responseMatch = responseBody.match(/SAMLResponse=([^&]+)/)\n  \n  if (requestMatch) {\n    let urlDecoded = decodeURIComponent(requestMatch[1])\n    let base64Decoded = decodeBase64WithPadding(urlDecoded)\n    await sdk.findings.create({\n      title: \"SAML Request Detected\",\n      description: `A SAML request was detected:\\n\\n` +\n                  `URL+Base64-decoded:\\n${base64Decoded}`,\n      request: request,\n      reporter: \"SAML Snagger\",\n      dedupeKey: `saml-request-${base64Decoded.substring(0, 50)}`\n    });\n  }\n\n  if (responseMatch) {\n    let urlDecoded = decodeURIComponent(responseMatch[1])\n    let base64Decoded = decodeBase64WithPadding(urlDecoded)\n    await sdk.findings.create({\n      title: \"SAML Response Detected\",\n      description: `A SAML response was detected:\\n\\n` +\n                  `Base64-decoded:\\n${base64Decoded}`,\n      request: request,\n      reporter: \"SAML Snagger\",\n      dedupeKey: `saml-response-${base64Decoded.substring(0, 50)}`\n    });\n  }\n}",
+              "kind": "string"
+            }
+          }
+        ],
+        "name": "Javascript",
+        "version": "0.1.0"
+      },
+      {
+        "alias": "on_intercept_response",
+        "definition_id": "caido/on-intercept-response",
+        "display": {
+          "x": 0,
+          "y": 100
+        },
+        "id": 4,
+        "inputs": [],
+        "name": "On Intercept Response",
+        "version": "0.1.0"
+      }
+    ]
+  },
+  "id": "548000fb-8a80-4343-af96-b9eae73f7fef",
+  "kind": "passive",
+  "name": "SAML Snagger"
+}
